@@ -1,6 +1,85 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ホロクロック時報ポータル</title>
+  <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.39/Tone.min.js" integrity="sha512-dPvxzsKf/Oj+S5UR02uhgfnYnATlA1zxV3f9dfuHsrRfmhhsMXmcWbNLXHPUC6FBl5hx8zQqYAIaA8PckrNOzA==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+  <style>
+    :root {
+      color-scheme: dark;
+      --glow-color: #70d6ff;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: "Zen Kaku Gothic New", "Hiragino Sans", "Yu Gothic", sans-serif;
+      background: radial-gradient(circle at 20% 20%, #061029 0%, #02030f 60%, #000000 100%);
+      color: #e6f6ff;
+      min-height: 100vh;
+      overflow: hidden;
+    }
+
+    #ui {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      padding: clamp(16px, 2vw, 32px);
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      pointer-events: none;
+      z-index: 10;
+      text-shadow: 0 0 12px rgba(112, 214, 255, 0.45);
+    }
+
+    #ui h1 {
+      margin: 0;
+      font-size: clamp(1.6rem, 4vw, 2.6rem);
+    }
+
+    #ui p {
+      margin: 0;
+      line-height: 1.6;
+      font-size: clamp(0.9rem, 2vw, 1.05rem);
+    }
+
+    .control-row {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 12px;
+      pointer-events: auto;
+    }
+
+    button {
+      background: linear-gradient(120deg, rgba(79, 209, 197, 0.95), rgba(112, 214, 255, 0.95));
+      color: #02122e;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 999px;
+      font-size: 1rem;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      cursor: pointer;
+      box-shadow: 0 20px 35px rgba(112, 214, 255, 0.35);
+      transition: transform 0.25s ease, box-shadow 0.25s ease;
+    }
+
+    button:hover {
+      transform: translateY(-2px) scale(1.02);
+      box-shadow: 0 24px 45px rgba(112, 214, 255, 0.5);
+    }
+
+    button:disabled {
+      opacity: 0.6;
+      cursor: default;
   <meta charset="UTF-8">
   <title>時報くん</title>
   <style>
@@ -53,6 +132,46 @@
       transform: none;
     }
 
+    label {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.95rem;
+      background: rgba(10, 27, 52, 0.6);
+      border: 1px solid rgba(112, 214, 255, 0.2);
+      padding: 8px 12px;
+      border-radius: 999px;
+      backdrop-filter: blur(6px);
+      pointer-events: auto;
+    }
+
+    input[type="checkbox"] {
+      accent-color: #70d6ff;
+      width: 18px;
+      height: 18px;
+    }
+
+    #status {
+      pointer-events: auto;
+      font-size: 0.95rem;
+      font-weight: 500;
+      color: rgba(183, 232, 255, 0.92);
+    }
+
+    a-scene {
+      width: 100vw;
+      height: 100vh;
+    }
+
+    .hint {
+      font-size: 0.85rem;
+      opacity: 0.75;
+    }
+
+    .credits {
+      font-size: 0.8rem;
+      opacity: 0.6;
+      margin-top: 8px;
     .status {
       font-size: 1rem;
       opacity: 0.8;
@@ -62,6 +181,145 @@
   </style>
 </head>
 <body>
+  <div id="ui">
+    <h1>ホロクロック時報ポータル</h1>
+    <p>WebXR空間に浮かぶ時刻を眺めながら、Web SpeechとTone.jsのジェネラティブ音響で時報が鳴る謎体験やで。ChromeでもSafari(webkit)でも腰抜かす準備しといてな。</p>
+    <div class="control-row">
+      <button id="startButton">ポータルを開く</button>
+      <label><input type="checkbox" id="speechToggle" checked /> 読み上げON</label>
+      <label><input type="checkbox" id="ambientToggle" checked /> サイバーチャイムON</label>
+    </div>
+    <p id="status">準備できたら「ポータルを開く」を押してな。初回は音声系の許可ダイアログが出るかもしれん。</p>
+    <p class="hint">VRゴーグル持ってたら、シーン右下の「Enter VR」ボタンから本物の空間に放り込めるで。</p>
+    <p class="credits">A-Frame + Tone.js + Web Speech API mashup</p>
+  </div>
+
+  <a-scene renderer="colorManagement: true; physicallyCorrectLights: true" xr-mode-ui="enabled: true">
+    <a-assets></a-assets>
+
+    <a-entity light="type: ambient; intensity: 0.4; color: #7fd7ff"></a-entity>
+    <a-entity light="type: point; intensity: 1.2; distance: 40; color: #9fe8ff" position="0 6 6"></a-entity>
+
+    <a-entity id="starField" starfield position="0 0 0"></a-entity>
+
+    <a-entity id="cameraRig" position="0 1.6 5">
+      <a-entity id="camera" camera look-controls wasd-controls position="0 0 0"></a-entity>
+    </a-entity>
+
+    <a-entity id="portal" position="0 1.6 -1" floating-time>
+      <a-ring id="timeRing" radius-inner="0.9" radius-outer="1.4" position="0 0 0" rotation="-90 0 0"
+              material="color: #70d6ff; metalness: 0.35; roughness: 0.2; emissive: #0a1d40; emissiveIntensity: 0.7"></a-ring>
+      <a-torus radius="1.3" radius-tubular="0.03" position="0 0 0" rotation="90 0 0"
+               material="color: #cddffb; opacity: 0.45; transparent: true"></a-torus>
+      <a-entity id="timeText" position="0 0 0" text="value: 00:00:00; align: center; color: #70d6ff; width: 6;"></a-entity>
+    </a-entity>
+
+    <a-entity id="digitRibbon" digit-ribbon position="0 1.6 -1"></a-entity>
+
+    <a-entity id="floor" geometry="primitive: circle; radius: 12" rotation="-90 0 0"
+              material="color: #051124; metalness: 0.2; roughness: 0.9; opacity: 0.95"></a-entity>
+
+    <a-sky color="#02030f"></a-sky>
+  </a-scene>
+
+  <script>
+    const startButton = document.getElementById("startButton");
+    const speechToggle = document.getElementById("speechToggle");
+    const ambientToggle = document.getElementById("ambientToggle");
+    const status = document.getElementById("status");
+    const timeText = document.getElementById("timeText");
+    const timeRing = document.getElementById("timeRing");
+
+    let started = false;
+    let lastMinute = null;
+    let speechEnabled = speechToggle.checked;
+    let ambientEnabled = ambientToggle.checked;
+
+    let audioGraphReady = false;
+    let chimeSynth, bellSynth, padSynth, shimmerSynth;
+    let padLoop, shimmerLoop;
+
+    const ambientChords = [
+      ["D4", "A4", "E5"],
+      ["F4", "C5", "G5"],
+      ["G4", "D5", "A5"],
+      ["E4", "B4", "F#5"],
+    ];
+
+    const sparkleNotes = ["A5", "B5", "D6", "E6", "A6"];
+
+    function setupToneGraph() {
+      if (audioGraphReady) return;
+
+      const reverb = new Tone.Reverb({ decay: 8, wet: 0.7 }).toDestination();
+      const delay = new Tone.FeedbackDelay("8n", 0.35);
+      delay.connect(reverb);
+
+      chimeSynth = new Tone.FMSynth({
+        harmonicity: 4,
+        modulationIndex: 12,
+        oscillator: { type: "sine" },
+        modulation: { type: "triangle" },
+        envelope: { attack: 0.02, decay: 0.3, sustain: 0.1, release: 1.8 },
+      });
+      chimeSynth.connect(reverb);
+
+      bellSynth = new Tone.MetalSynth({
+        frequency: 200,
+        envelope: { attack: 0.001, decay: 1.4, release: 1.6 },
+        harmonicity: 12,
+        modulationIndex: 32,
+        resonance: 800,
+        octaves: 1.5,
+      });
+      bellSynth.connect(reverb);
+
+      padSynth = new Tone.PolySynth(Tone.Synth, {
+        oscillator: { type: "sine" },
+        envelope: { attack: 2.4, decay: 1.2, sustain: 0.7, release: 7 },
+      });
+      padSynth.connect(delay);
+
+      shimmerSynth = new Tone.MonoSynth({
+        oscillator: { type: "triangle" },
+        envelope: { attack: 1, decay: 0.3, sustain: 0.4, release: 2.6 },
+      });
+      shimmerSynth.connect(delay);
+
+      padLoop = new Tone.Loop((time) => {
+        const chord = ambientChords[Math.floor(Math.random() * ambientChords.length)];
+        padSynth.triggerAttackRelease(chord, "2m", time);
+      }, "4m");
+
+      shimmerLoop = new Tone.Loop((time) => {
+        const note = sparkleNotes[Math.floor(Math.random() * sparkleNotes.length)];
+        shimmerSynth.triggerAttackRelease(note, "8n", time);
+      }, "2n");
+
+      audioGraphReady = true;
+    }
+
+    function updateAmbientLoops() {
+      if (!audioGraphReady) return;
+      if (ambientEnabled) {
+        if (padLoop.state !== "started") padLoop.start(0);
+        if (shimmerLoop.state !== "started") shimmerLoop.start(0);
+      } else {
+        if (padLoop.state === "started") padLoop.stop(0);
+        if (shimmerLoop.state === "started") shimmerLoop.stop(0);
+      }
+    }
+
+    function speakTime(date) {
+      if (!speechEnabled) return;
+      if (!("speechSynthesis" in window)) {
+        status.textContent = "おっと、このブラウザはWeb Speech APIに対応してへんみたいや。読み上げなしで楽しんでや。";
+        speechToggle.checked = false;
+        speechEnabled = false;
+        return;
+      }
+      const utterance = new SpeechSynthesisUtterance(
+        `ただいまの時刻は ${date.getHours()} 時 ${date.getMinutes()} 分です。`
   <h1>時報くん</h1>
   <div class="clock" id="clock">--:--:--</div>
   <button id="toggle">スタート</button>
@@ -97,6 +355,181 @@
       speechSynthesis.speak(utterance);
     }
 
+    function playChime(now) {
+      if (!audioGraphReady) return;
+      const chordIndex = (now.getHours() + Math.floor(now.getMinutes() / 5)) % ambientChords.length;
+      const chord = ambientChords[chordIndex];
+      const base = Tone.now();
+      chord.forEach((note, i) => {
+        chimeSynth.triggerAttackRelease(note, "2n", base + i * 0.18);
+      });
+      bellSynth.triggerAttackRelease("G4", "2n", base + 0.5);
+      shimmerSynth.triggerAttackRelease("D6", "8n", base + 0.8);
+    }
+
+    function setTimeTextColor(now) {
+      const hue = (now.getMinutes() * 6 + now.getSeconds() / 10) % 360;
+      const color = `hsl(${hue}, 75%, 70%)`;
+      timeText.setAttribute("text", "color", color);
+      timeRing.setAttribute("material", "color", color);
+      document.documentElement.style.setProperty("--glow-color", color);
+    }
+
+    function formatTime(date) {
+      return [date.getHours(), date.getMinutes(), date.getSeconds()]
+        .map((v) => String(v).padStart(2, "0"))
+        .join(":");
+    }
+
+    function updateClock() {
+      const now = new Date();
+      timeText.setAttribute("text", "value", formatTime(now));
+      setTimeTextColor(now);
+
+      if (started && lastMinute !== now.getMinutes()) {
+        lastMinute = now.getMinutes();
+        speakTime(now);
+        if (ambientEnabled) {
+          playChime(now);
+        }
+        status.textContent = `時報発動！ ${now.getHours()}時${now.getMinutes()}分の宇宙チャイム鳴らしたで。`;
+      }
+    }
+
+    function tickClock() {
+      updateClock();
+      requestAnimationFrame(tickClock);
+    }
+
+    tickClock();
+
+    async function startExperience() {
+      if (started) return;
+      status.textContent = "オーディオエンジン起動中...";
+      try {
+        await Tone.start();
+        setupToneGraph();
+        Tone.Transport.start();
+        updateAmbientLoops();
+        started = true;
+        lastMinute = new Date().getMinutes();
+        speakTime(new Date());
+        if (ambientEnabled) {
+          playChime(new Date());
+        }
+        status.textContent = "ホロクロック稼働中！時間が1分進むたびにアナウンスとチャイムが入るで。";
+        startButton.textContent = "稼働中";
+        startButton.disabled = true;
+      } catch (error) {
+        console.error(error);
+        status.textContent = "音の起動に失敗したわ... ブラウザの許可設定を確認してもう一度試してみて。";
+      }
+    }
+
+    startButton.addEventListener("click", () => {
+      startExperience();
+    });
+
+    speechToggle.addEventListener("change", () => {
+      speechEnabled = speechToggle.checked;
+      if (speechEnabled) {
+        status.textContent = "読み上げONにしたで。次の分でしゃべるからな。";
+      } else {
+        status.textContent = "読み上げOFFにしたで。静かに眺めたいときはこれや。";
+      }
+    });
+
+    ambientToggle.addEventListener("change", () => {
+      ambientEnabled = ambientToggle.checked;
+      updateAmbientLoops();
+      if (ambientEnabled) {
+        status.textContent = "サイバーチャイム再開！次の分で鳴るで。";
+      } else {
+        status.textContent = "サイバーチャイム一旦停止中。BGMなしの静寂モードや。";
+      }
+    });
+
+    if (!("speechSynthesis" in window)) {
+      speechToggle.checked = false;
+      speechToggle.disabled = true;
+      speechEnabled = false;
+      status.textContent = "Web Speech API非対応ブラウザやけど、ビジュアルとチャイムだけでも楽しんでや。";
+    }
+
+    AFRAME.registerComponent("floating-time", {
+      schema: { amplitude: { type: "number", default: 0.3 }, speed: { type: "number", default: 0.4 } },
+      tick: function (time, timeDelta) {
+        const t = time / 1000;
+        const y = 1.6 + Math.sin(t * this.data.speed) * this.data.amplitude;
+        this.el.object3D.position.y = y;
+        this.el.object3D.rotation.y = t * 0.18;
+      },
+    });
+
+    AFRAME.registerComponent("digit-ribbon", {
+      schema: { count: { type: "int", default: 24 } },
+      init: function () {
+        this.digits = [];
+        this.target = new THREE.Vector3(0, 1.6, -1);
+        const palette = ["#9ff3ff", "#ffb3fd", "#afffca", "#fff0a8"];
+        for (let i = 0; i < this.data.count; i++) {
+          const glyph = document.createElement("a-entity");
+          glyph.setAttribute("text", {
+            value: String(i % 10),
+            align: "center",
+            color: palette[i % palette.length],
+            width: 2.5,
+          });
+          this.el.appendChild(glyph);
+          this.digits.push(glyph);
+        }
+      },
+      tick: function (time, timeDelta) {
+        const t = time / 1000;
+        const radius = 4.5;
+        this.digits.forEach((glyph, index) => {
+          const angle = t * 0.15 + (index / this.digits.length) * Math.PI * 2;
+          const height = Math.sin(angle * 3) * 1.2 + 1.6;
+          const x = Math.cos(angle) * radius;
+          const z = Math.sin(angle) * radius - 1;
+          const obj = glyph.object3D;
+          obj.position.set(x, height, z);
+          obj.lookAt(this.target);
+        });
+      },
+    });
+
+    AFRAME.registerComponent("starfield", {
+      schema: { count: { type: "int", default: 600 } },
+      init: function () {
+        const geometry = new THREE.BufferGeometry();
+        const positions = new Float32Array(this.data.count * 3);
+        for (let i = 0; i < this.data.count; i++) {
+          const radius = 30 + Math.random() * 70;
+          const theta = Math.random() * Math.PI * 2;
+          const phi = Math.acos(2 * Math.random() - 1);
+          positions[i * 3] = radius * Math.sin(phi) * Math.cos(theta);
+          positions[i * 3 + 1] = radius * Math.sin(phi) * Math.sin(theta);
+          positions[i * 3 + 2] = radius * Math.cos(phi);
+        }
+        geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+        const material = new THREE.PointsMaterial({
+          color: 0x70d6ff,
+          size: 0.35,
+          transparent: true,
+          opacity: 0.75,
+          depthWrite: false,
+        });
+        const points = new THREE.Points(geometry, material);
+        this.el.setObject3D("mesh", points);
+      },
+      tick: function (time, timeDelta) {
+        const mesh = this.el.getObject3D("mesh");
+        if (mesh) {
+          mesh.rotation.y = time / 60000;
+        }
+      },
+    });
     function updateClock() {
       const now = new Date();
       clock.textContent = formatTime(now);
