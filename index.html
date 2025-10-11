@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>時報くん</title>
+  <style>
+    body {
+      font-family: "Helvetica Neue", Arial, sans-serif;
+      background: radial-gradient(circle at top, #161b33, #0b0d17);
+      color: #f0f4f8;
+      min-height: 100vh;
+      margin: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      gap: 24px;
+      text-align: center;
+    }
+
+    h1 {
+      font-size: 3rem;
+      margin: 0;
+    }
+
+    .clock {
+      font-size: 5rem;
+      letter-spacing: 0.08em;
+      font-variant-numeric: tabular-nums;
+    }
+
+    button {
+      background: #2f80ed;
+      color: white;
+      border: none;
+      padding: 14px 32px;
+      border-radius: 999px;
+      font-size: 1.1rem;
+      cursor: pointer;
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+      box-shadow: 0 12px 24px rgba(47, 128, 237, 0.25);
+    }
+
+    button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 16px 30px rgba(47, 128, 237, 0.35);
+    }
+
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      box-shadow: none;
+      transform: none;
+    }
+
+    .status {
+      font-size: 1rem;
+      opacity: 0.8;
+      max-width: 480px;
+      line-height: 1.6;
+    }
+  </style>
+</head>
+<body>
+  <h1>時報くん</h1>
+  <div class="clock" id="clock">--:--:--</div>
+  <button id="toggle">スタート</button>
+  <p class="status" id="status">ボタンを押すと、1分ごとにWeb Speech APIで時刻を読み上げます。</p>
+
+  <script>
+    const clock = document.getElementById("clock");
+    const button = document.getElementById("toggle");
+    const status = document.getElementById("status");
+
+    let timerId = null;
+
+    function formatTime(date) {
+      const hours = String(date.getHours()).padStart(2, "0");
+      const minutes = String(date.getMinutes()).padStart(2, "0");
+      const seconds = String(date.getSeconds()).padStart(2, "0");
+      return `${hours}:${minutes}:${seconds}`;
+    }
+
+    function speakTime(date) {
+      if (!("speechSynthesis" in window)) {
+        status.textContent = "このブラウザは音声読み上げに対応していません。";
+        return;
+      }
+
+      const hours = date.getHours();
+      const minutes = date.getMinutes();
+      const utterance = new SpeechSynthesisUtterance(
+        `ただいまの時刻は ${hours} 時 ${minutes} 分です。`
+      );
+      utterance.lang = "ja-JP";
+      speechSynthesis.cancel();
+      speechSynthesis.speak(utterance);
+    }
+
+    function updateClock() {
+      const now = new Date();
+      clock.textContent = formatTime(now);
+      return now;
+    }
+
+    function startTicker() {
+      if (timerId) return;
+
+      speakTime(updateClock());
+      const delay = 60000 - (Date.now() % 60000);
+      timerId = setTimeout(function tick() {
+        const now = updateClock();
+        speakTime(now);
+        timerId = setTimeout(tick, 60000);
+      }, delay);
+
+      button.textContent = "ストップ";
+      status.textContent = "時報を読み上げています。ブラウザをアクティブにしておくと安定します。";
+    }
+
+    function stopTicker() {
+      if (!timerId) return;
+      clearTimeout(timerId);
+      timerId = null;
+      button.textContent = "スタート";
+      status.textContent = "時報は停止中です。ボタンを押して再開できます。";
+    }
+
+    button.addEventListener("click", () => {
+      if (timerId) {
+        stopTicker();
+      } else {
+        startTicker();
+      }
+    });
+
+    updateClock();
+    setInterval(updateClock, 1000);
+  </script>
+</body>
+</html>
