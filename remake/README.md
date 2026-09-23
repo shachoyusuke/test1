@@ -33,6 +33,7 @@ remake/tools/restore.sh <制作一式.zip> [<見本・引き継ぎ一式.zip>]
 | `tools/xhtml2md.py` | EPUB の本文を章ごとの Markdown にする。通読用と lint 用。過去問題の引用は引用ブロックにして lint から外す |
 | `tools/src2lint.py` | 原稿（独自記法）を行番号を保ったまま lint 用にする。指摘の行番号が原稿の行番号になる |
 | `tools/epub_diff.py` | 二つの EPUB を比べる。受け取った EPUB が手元のソースのビルドと同じかを確かめる |
+| `tools/epub_pack.py` | EPUB の展開と固め直し（mimetype を先頭に無圧縮で置く）。原稿を経由せず EPUB を直接直すとき用 |
 | `tools/restore.sh` | zip から作業場を組み立て直す |
 
 ## 1周の回し方（章単位）
