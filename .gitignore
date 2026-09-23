@@ -1,0 +1,11 @@
+# 公開リポジトリのため、原稿・参考資料・作業メモは当面コミットしない
+remake/book-orig/
+remake/book/
+remake/ref/
+remake/notes/
+remake/work/
+remake/dist/
+__pycache__/
+
+# 道具の置き場（セッション開始フックが毎回そろえる）
+remake/.tools/
