@@ -159,8 +159,10 @@ class Converter:
             self.table(el, quote=quote or "res" in cls)
         elif tag == "figure":
             cap = el.find(XHTML_NS + "figcaption")
+            img = el.find(XHTML_NS + "img")
+            name = os.path.basename(img.get("src", "")) if img is not None else ""
             if cap is not None:
-                self.para("［図］" + inline(cap), quote=True)
+                self.para(f"［図 {name}］" + inline(cap), quote=True)
         elif tag == "div":
             if "kakomon" in cls:
                 self.walk(el, quote=True)
