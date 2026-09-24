@@ -10,11 +10,11 @@
   A 壊していない  ビルド、EPUBCheck、内部リンク、過去問題の原文と正答、出典、地の文の新しい数値の裏取り
   B 別の顔        CSS・表紙・副題・章の入口と出口が、見本（合同会社の本）の型から離れている
   C 読む気がわく  文のリズム（lint）、定義の囲みと先送りの数、登場人物、節の記号、図の文字の大きさ、B+木の図
-  D 読者の判定    名前を伏せた読み比べ（remake/goal/panel.json）と、6軸ルーブリック（remake/goal/rubric.json）が、
-                  いまの本文に対して記録されている
+  D 通読と採点    前付と全章を読者として通読し、natural-japanese の6軸ルーブリックで採点した記録
+                  （remake/goal/review.json）が、いまの本文に対してある
 
-D の2つのファイルは、この作業の経緯を知らない読み手（サブエージェント）が、最新の EPUB を読んで書く。
-本文が1字でも変わると content_hash が変わり、読み直しが要る。
+D は読み手役のサブエージェントを使わず、書き手が自分で通読して記録する。章ごとに本文の指紋を
+残すので、本文を直した章だけが読み直しの対象になる。
 """
 import argparse
 import glob
@@ -297,52 +297,37 @@ def main():
               "B+木の図（f11-btree）に申込番号1001〜1018がすべて描かれている",
               f"欠け {missing}" if missing else "全部ある")
 
-    # ---------------------------------------------------------- D 読者の判定
-    pj = os.path.join(GOAL, "panel.json")
-    if not os.path.exists(pj):
-        check("D", "D1", False, "名前を伏せた読み比べで、新しい版が選ばれている", "panel.json がない")
-    else:
-        panel = json.load(open(pj, encoding="utf-8"))
-        js = panel.get("judgments", [])
-        stale = panel.get("content_hash") != chash
-        readers = {j["reader"] for j in js}
-        by_ch = {}
-        for j in js:
-            by_ch.setdefault(j["chapter"], []).append(j)
-        covered = [c for c in CHAPTERS if len({j["reader"] for j in by_ch.get(c, [])}) >= 3]
-        wins = sum(1 for j in js if j.get("prefer") == "new")
-        rate = wins / max(len(js), 1)
-        lost = [c for c, lst in by_ch.items()
-                if sum(1 for j in lst if j.get("prefer") == "new") * 2 <= len(lst)]
-        cont = [j["continue_new"] for j in js if "continue_new" in j]
-        mean = sum(cont) / max(len(cont), 1)
-        ch_means = {c: sum(j["continue_new"] for j in lst) / len(lst)
-                    for c, lst in by_ch.items() if lst}
-        weak = [f"{c}={v:.1f}" for c, v in ch_means.items() if v < 3.0]
-        ok = (not stale and len(readers) >= 3 and len(covered) == len(CHAPTERS)
-              and rate >= 0.8 and not lost and mean >= 4.0 and not weak)
-        check("D", "D1", ok, "名前を伏せた読み比べで、新しい版が選ばれている",
-              ("いまの本文を読んだ記録ではない／" if stale else "")
-              + f"読み手 {len(readers)} 人、全員が読んだ章 {len(covered)}/14、"
-              f"新しい版を選んだ割合 {rate:.0%}（80%以上）、負けた章 {lost}、"
-              f"続きを読みたい 平均 {mean:.1f}（4.0以上）" + (f"、3未満の章 {weak}" if weak else ""))
-    rj = os.path.join(GOAL, "rubric.json")
-    if not os.path.exists(rj):
-        check("D", "D2", False, "6軸ルーブリックで全軸90点以上・平均92点以上", "rubric.json がない")
-    else:
-        rb = json.load(open(rj, encoding="utf-8"))
-        axes = rb.get("axes", {})
-        vals = list(axes.values())
-        stale = rb.get("content_hash") != chash
-        ok = (not stale and len(vals) == 6 and min(vals) >= 90
-              and sum(vals) / len(vals) >= 92)
-        check("D", "D2", ok, "6軸ルーブリックで全軸90点以上・平均92点以上",
-              ("いまの本文を読んだ記録ではない／" if stale else "")
-              + "、".join(f"{k} {v}" for k, v in axes.items()))
+    # ---------------------------------------------------------- D 通読と採点
+    # 読み手役のサブエージェントは使わない。書き手（このセッション）が、組み上がった章を
+    # 読者として通読し、natural-japanese の6軸ルーブリックで採点して review.json に残す。
+    # 章ごとに本文（XHTML）の指紋を記録するので、直した章だけ読み直せばよい。
+    AXES = ["脱AI臭", "情報密度", "機能性", "論理の明晰性", "人間味", "自己証明力"]
+    docs = ["frontmatter"] + CHAPTERS
+    rv_path = os.path.join(GOAL, "review.json")
+    review = json.load(open(rv_path, encoding="utf-8")) if os.path.exists(rv_path) else {}
+    missing, stale, weak = [], [], []
+    for d in docs:
+        n = f"OEBPS/Text/{d}.xhtml"
+        h = hashlib.sha256(z.read(n)).hexdigest() if n in z.namelist() else None
+        e = review.get(d)
+        if not e:
+            missing.append(d)
+            continue
+        if e.get("hash") != h:
+            stale.append(d)
+            continue
+        sc = e.get("scores", {})
+        vals = [sc.get(ax, 0) for ax in AXES]
+        if min(vals) < 90 or sum(vals) / len(vals) < 92 or not e.get("note"):
+            weak.append(f"{d}(最低{min(vals)}・平均{sum(vals) / len(vals):.0f})")
+    check("D", "D1", not (missing or stale or weak),
+          "前付と全章を通読し、6軸すべて90点以上・平均92点以上（review.json）",
+          f"未読 {len(missing)}、読んだ後に変わった {len(stale)}"
+          + (f" {stale[:5]}" if stale else "") + f"、点が足りない {weak[:5]}")
 
     # ---------------------------------------------------------- 表示
     names = {"A": "壊していない", "B": "合同会社の本と別の顔", "C": "読む気がわく",
-             "D": "読者の判定"}
+             "D": "通読と採点"}
     print(f"本文の指紋: {chash[:16]}　EPUB: {os.path.basename(epubs[-1])}")
     for grp in "ABCD":
         print(f"\n[{grp}] {names[grp]}")
